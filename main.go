@@ -146,39 +146,42 @@ func DisplayRecords(db *badger.DB) {
 }
 
 func DisplayRecord(db *badger.DB, key string) {
-	err := db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte(key)) // handle err
-		if err != nil {
-			return err
-		}
-		val := item.Value(nil) // handle err
-		if err != nil {
-			return err
-		}
-		fmt.Printf("The value is: %s\n", val)
-		return nil
-	})
 
+	//Does not work
 	// err := db.View(func(txn *badger.Txn) error {
-	// 	opts := badger.DefaultIteratorOptions
-	// 	opts.PrefetchSize = 10
-	// 	it := txn.NewIterator(opts)
-	// 	defer it.Close()
-	// 	for it.Rewind(); it.Valid(); it.Next() {
-	// 		item := it.Item()
-	// 		k := item.Key()
-	// 		if string(k) == key {
-	// 			err := item.Value(func(v []byte) error {
-	// 				fmt.Printf("key=%s, value=%s\n", k, v)
-	// 				return nil
-	// 			})
-	// 			if err != nil {
-	// 				return err
-	// 			}
-	// 		}
+	// 	item, err := txn.Get([]byte(key)) // handle err
+	// 	if err != nil {
+	// 		return err
 	// 	}
+	// 	val := item.Value(nil) // handle err
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	fmt.Printf("The value is: %s\n", val)
 	// 	return nil
 	// })
+
+	//This works
+	err := db.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		it := txn.NewIterator(opts)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			if string(k) == key {
+				err := item.Value(func(v []byte) error {
+					fmt.Printf("key=%s, value=%s\n", k, v)
+					return nil
+				})
+				if err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
 
 	if err != nil {
 		fmt.Println(err)
