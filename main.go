@@ -17,7 +17,7 @@ func main() {
 	}
 	defer db.Close()
 
-	// Transactions
+	// Create Transaction
 	tran1 := db.NewTransaction(true)
 	defer tran1.Discard()
 
@@ -36,6 +36,8 @@ func main() {
 	check(err)
 	fmt.Printf("Read Key '%s' using tran2.Get\n", string(entry.Key()))
 
+	//write and delete data
+	//--------------------------------------------------------
 	N, M := 50000, 1000
 
 	wb := db.NewWriteBatch()
@@ -47,9 +49,10 @@ func main() {
 		check(wb.Delete(key(i)))
 	}
 
-	check(wb.Flush())
+	check(wb.Flush()) //Flush must be called at the end to ensure that any pending writes get committed to Badger. Flush returns any error stored by WriteBatch.
 
 	fmt.Println("Inserted ", N, "Deleted", M)
+	//--------------------------------------------------------
 
 	err = db.View(func(txn *badger.Txn) error {
 		iopt := badger.DefaultIteratorOptions
@@ -73,8 +76,9 @@ func main() {
 		fmt.Println("Enter your choice")
 		fmt.Println("1. Enter value in BadgerDb")
 		fmt.Println("2. Display all Records")
-		fmt.Println("3. Delete Records")
-		fmt.Println("4. Exit")
+		fmt.Println("3. Display value")
+		fmt.Println("4. Delete Records")
+		fmt.Println("5. Exit")
 		fmt.Scanln(&choice)
 
 		switch choice {
@@ -88,6 +92,11 @@ func main() {
 		case "2":
 			DisplayRecords(db)
 		case "3":
+			var key string
+			fmt.Println("Enter Key")
+			fmt.Scanln(&key)
+			DisplayRecord(db, key)
+		case "4":
 			var key string
 			fmt.Println("Enter Key")
 			fmt.Scanln(&key)
@@ -121,7 +130,7 @@ func DisplayRecords(db *badger.DB) {
 			item := it.Item()
 			k := item.Key()
 			err := item.Value(func(v []byte) error {
-				fmt.Printf("key=%s, value=%s\n", k, v)
+				fmt.Printf("Value : key=%s, value=%s\n", k, v)
 				return nil
 			})
 			if err != nil {
@@ -130,6 +139,46 @@ func DisplayRecords(db *badger.DB) {
 		}
 		return nil
 	})
+
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func DisplayRecord(db *badger.DB, key string) {
+	err := db.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(key)) // handle err
+		if err != nil {
+			return err
+		}
+		val := item.Value(nil) // handle err
+		if err != nil {
+			return err
+		}
+		fmt.Printf("The value is: %s\n", val)
+		return nil
+	})
+
+	// err := db.View(func(txn *badger.Txn) error {
+	// 	opts := badger.DefaultIteratorOptions
+	// 	opts.PrefetchSize = 10
+	// 	it := txn.NewIterator(opts)
+	// 	defer it.Close()
+	// 	for it.Rewind(); it.Valid(); it.Next() {
+	// 		item := it.Item()
+	// 		k := item.Key()
+	// 		if string(k) == key {
+	// 			err := item.Value(func(v []byte) error {
+	// 				fmt.Printf("key=%s, value=%s\n", k, v)
+	// 				return nil
+	// 			})
+	// 			if err != nil {
+	// 				return err
+	// 			}
+	// 		}
+	// 	}
+	// 	return nil
+	// })
 
 	if err != nil {
 		fmt.Println(err)
