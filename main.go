@@ -38,20 +38,20 @@ func main() {
 
 	//write and delete data
 	//--------------------------------------------------------
-	N, M := 50000, 1000
+	//N, M := 50000, 1000
 
-	wb := db.NewWriteBatch()
-	defer wb.Cancel()
-	for i := 0; i < N; i++ {
-		check(wb.Set(key(i), val(i)))
-	}
-	for i := 0; i < M; i++ {
-		check(wb.Delete(key(i)))
-	}
+	//wb := db.NewWriteBatch()
+	//defer wb.Cancel()
+	//for i := 0; i < N; i++ {
+	//	check(wb.Set(key(i), val(i)))
+	//}
+	//for i := 0; i < M; i++ {
+	//	check(wb.Delete(key(i)))
+	//}
 
-	check(wb.Flush()) //Flush must be called at the end to ensure that any pending writes get committed to Badger. Flush returns any error stored by WriteBatch.
+	//check(wb.Flush()) //Flush must be called at the end to ensure that any pending writes get committed to Badger. Flush returns any error stored by WriteBatch.
 
-	fmt.Println("Inserted ", N, "Deleted", M)
+	//fmt.Println("Inserted ", N, "Deleted", M)
 	//--------------------------------------------------------
 
 	err = db.View(func(txn *badger.Txn) error {
@@ -78,7 +78,10 @@ func main() {
 		fmt.Println("2. Display all Records")
 		fmt.Println("3. Display value")
 		fmt.Println("4. Delete Records")
-		fmt.Println("5. Exit")
+		fmt.Println("5. Prefix Scan")
+		fmt.Println("6. Prefix Scan - Delete")
+		fmt.Println("7. Delete all Records")
+		fmt.Println("8. Exit")
 		fmt.Scanln(&choice)
 
 		switch choice {
@@ -101,6 +104,18 @@ func main() {
 			fmt.Println("Enter Key")
 			fmt.Scanln(&key)
 			DeleteRecords(db, key)
+		case "5":
+			var key string
+			fmt.Println("Enter Prefix")
+			fmt.Scanln(&key)
+			PrefixScan(db, key)
+		case "6":
+			var key string
+			fmt.Println("Enter Prefix To Delete")
+			fmt.Scanln(&key)
+			PrefixScanDelete(db, key)
+		case "7":
+			DeleteAll(db)
 		default:
 			os.Exit(0)
 		}
@@ -145,6 +160,55 @@ func DisplayRecords(db *badger.DB) {
 	}
 }
 
+func DeleteAll(db *badger.DB) {
+	err := db.Update(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+		for it.Rewind(); it.Valid(); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			err := txn.Delete(k)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Println("Record Deleted - ", k)
+			}
+
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func PrefixScan(db *badger.DB, key string) {
+	err := db.Update(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+
+		prefix := []byte(key)
+
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			err := item.Value(func(v []byte) error {
+				fmt.Printf("key=%s, value=%s\n", k, v)
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
 func DisplayRecord(db *badger.DB, key string) {
 
 	//Does not work
@@ -171,8 +235,11 @@ func DisplayRecord(db *badger.DB, key string) {
 			item := it.Item()
 			k := item.Key()
 			if string(k) == key {
+
 				err := item.Value(func(v []byte) error {
 					fmt.Printf("key=%s, value=%s\n", k, v)
+
+					log.Println(string(v))
 					return nil
 				})
 				if err != nil {
@@ -204,6 +271,37 @@ func DeleteRecords(db *badger.DB, key string) {
 				} else {
 					fmt.Println("Record Deleted - ", key)
 				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func PrefixScanDelete(db *badger.DB, key string) {
+	err := db.Update(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchSize = 10
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		prefix := []byte(key)
+
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			k := item.Key()
+			err := txn.Delete(k)
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Println("Record Deleted - ", key)
+			}
+
+			if err != nil {
+				return err
 			}
 		}
 		return nil
