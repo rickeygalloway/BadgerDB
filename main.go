@@ -162,7 +162,11 @@ func DisplayRecords(db *badger.DB) {
 
 func DeleteAll(db *badger.DB) {
 	err := db.Update(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.DefaultIteratorOptions)
+
+		options := badger.DefaultIteratorOptions
+		options.PrefetchSize = 1000
+
+		it := txn.NewIterator(options)
 		defer it.Close()
 		for it.Rewind(); it.Valid(); it.Next() {
 			item := it.Item()
